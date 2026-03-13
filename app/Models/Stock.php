@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Stock extends Model
 {
@@ -55,6 +56,11 @@ class Stock extends Model
         return $this->belongsTo(Marca::class);
     }
 
+    public function recalibraciones(): HasMany
+    {
+        return $this->hasMany(Recalibracion::class);
+    }
+
     // Opcional: accessor para mostrar algo útil en listas
     public function getNombreCompletoAttribute(): string
     {
@@ -88,5 +94,26 @@ class Stock extends Model
 
         // Formato con 3 dígitos (001, 002, ..., 010, 100, etc.)
         return sprintf('%s-%03d', $prefijo, $numero);
+    }
+
+    // ────────────────────────────────────────────────
+    // ACCESSORS NUEVOS PARA LA COLUMNA EN FILAMENT
+    // ────────────────────────────────────────────────
+
+    public function getProximaRecalibracionFormattedAttribute(): string
+    {
+        $ultima = $this->recalibraciones()->latest('fecha_recalibracion')->first();
+        return $ultima?->proxima_recalibracion?->format('d/m/Y') ?? 'Sin programar';
+    }
+
+    public function getProximaRecalibracionColorAttribute(): string
+    {
+        $ultima = $this->recalibraciones()->latest('fecha_recalibracion')->first();
+        $proxima = $ultima?->proxima_recalibracion;
+
+        if (!$proxima) return 'gray';
+        if ($proxima->isPast()) return 'danger';
+        if ($proxima->diffInDays() <= 30) return 'warning';
+        return 'success';
     }
 }

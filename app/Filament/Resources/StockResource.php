@@ -36,10 +36,9 @@ class StockResource extends Resource
                             ->unique(ignoreRecord: true)
                             ->placeholder('Se generará automáticamente')
                             ->hint('El sistema sugerirá el siguiente número según la codificación seleccionada')
-                            ->disabled()               // Siempre no editable
-                            ->dehydrated(true)         // Se envía aunque esté disabled
+                            ->disabled()
+                            ->dehydrated(true)
                             ->afterStateHydrated(function ($state, $record, callable $set, callable $get) {
-                                // En creación: sugerir si ya hay codificación seleccionada
                                 if (!$record?->exists && $get('codificacion_id')) {
                                     $sugerido = Stock::generarSiguienteCodigo($get('codificacion_id'));
                                     $set('codigo', $sugerido);
@@ -55,8 +54,8 @@ class StockResource extends Resource
                         Forms\Components\Select::make('codificacion_id')
                             ->label('Codificación')
                             ->relationship('codificacion', 'codificacion', fn ($query) => $query->orderBy('codificacion'))
-                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->codificacion)  // Solo nombre en el input seleccionado
-                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->codificacion} ({$record->codigo})") // Con prefijo en el dropdown
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->codificacion)
+                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->codificacion} ({$record->codigo})")
                             ->required()
                             ->searchable()
                             ->preload()
@@ -109,7 +108,7 @@ class StockResource extends Resource
 
                             Forms\Components\Toggle::make('es_critico')
                                 ->label('Crítico (stock bajo)')
-                                ->disabled() // se calcula automáticamente
+                                ->disabled()
                                 ->dehydrated(true),
                         ]),
 
@@ -138,15 +137,62 @@ class StockResource extends Resource
                             ->rows(3)
                             ->columnSpanFull(),
                     ]),
+
+                Forms\Components\Section::make('Historial de Recalibraciones')
+                    ->description('Registra cada recalibración realizada al ítem. El sistema mostrará alertas cuando se acerque la próxima fecha.')
+                    ->schema([
+                        Forms\Components\Repeater::make('recalibraciones')
+                            ->relationship()
+                            ->label('Recalibraciones realizadas')
+                            ->schema([
+                                Forms\Components\DatePicker::make('fecha_recalibracion')
+                                    ->label('Fecha de recalibración')
+                                    ->required()
+                                    ->maxDate(now())
+                                    ->native(false),
+
+                                Forms\Components\DatePicker::make('proxima_recalibracion')
+                                    ->label('Próxima recalibración')
+                                    ->minDate(now())
+                                    ->native(false),
+
+                                Forms\Components\Textarea::make('observaciones')
+                                    ->label('Observaciones / Certificado / Proveedor')
+                                    ->rows(3),
+
+                                Forms\Components\TextInput::make('realizada_por_nombre')
+                                    ->label('Realizada por')
+                                    ->placeholder('Ej: Andres Reyes - Técnico')
+                                    ->maxLength(100)
+                                    ->required()
+                                    ->columnSpan(1),
+                            ])
+                            ->columns(2)
+                            ->columnSpanFull()
+                            ->reorderable(false)
+                            ->deletable(true)
+                            ->deleteAction(
+                                fn ($action) => $action
+                                    ->label('Eliminar esta recalibración')
+                                    ->icon('heroicon-o-trash')
+                                    ->color('danger')
+                                    ->size('sm')
+                                    ->requiresConfirmation()
+                                    ->modalHeading('¿Eliminar esta recalibración?')
+                                    ->modalDescription('Esta acción no se puede deshacer.')
+                                    ->modalSubmitActionLabel('Sí, eliminar')
+                                    ->modalCancelActionLabel('Cancelar')
+                            )
+                            ->addable(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\CreateRecord || $livewire instanceof \Filament\Resources\Pages\EditRecord)
+                            ->addActionLabel('Agregar nueva recalibración'),
+                    ])
+                    ->collapsible()
+                    ->collapsed(fn ($record) => !$record?->exists),
             ]);
     }
 
-    /**
-     * Mutar datos antes de crear un nuevo registro (seguridad extra)
-     */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Si por alguna razón el código quedó vacío → generarlo
         if (empty($data['codigo']) && !empty($data['codificacion_id'])) {
             $data['codigo'] = Stock::generarSiguienteCodigo($data['codificacion_id']);
         }
@@ -199,6 +245,13 @@ class StockResource extends Resource
                     ->boolean()
                     ->trueColor('danger')
                     ->falseColor('gray'),
+
+                // COLUMNA FINAL: usa los accessors del modelo (más estable y sin eager loading)
+                Tables\Columns\TextColumn::make('proxima_recalibracion_formatted')
+                    ->label('Próxima recalibración')
+                    ->sortable(false)
+                    ->badge()
+                    ->color(fn ($record) => $record->proxima_recalibracion_color),
 
                 Tables\Columns\TextColumn::make('condicion')
                     ->badge()
