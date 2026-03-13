@@ -30,15 +30,16 @@ class StockResource extends Resource
                 Forms\Components\Section::make('Información principal')
                     ->schema([
                         Forms\Components\TextInput::make('codigo')
+                            ->label('Código')
                             ->required()
                             ->maxLength(50)
                             ->unique(ignoreRecord: true)
-                            ->placeholder('Se generará automáticamente (ej: EPP-001)')
+                            ->placeholder('Se generará automáticamente')
                             ->hint('El sistema sugerirá el siguiente número según la codificación seleccionada')
-                            ->disabledOn('edit') // opcional: no permitir editar en edición (seguridad)
-                            ->dehydrated(true)
+                            ->disabled()               // Siempre no editable
+                            ->dehydrated(true)         // Se envía aunque esté disabled
                             ->afterStateHydrated(function ($state, $record, callable $set, callable $get) {
-                                // En creación: si ya seleccionaron codificacion → sugerir
+                                // En creación: sugerir si ya hay codificación seleccionada
                                 if (!$record?->exists && $get('codificacion_id')) {
                                     $sugerido = Stock::generarSiguienteCodigo($get('codificacion_id'));
                                     $set('codigo', $sugerido);
@@ -52,12 +53,14 @@ class StockResource extends Resource
                             ->columnSpanFull(),
 
                         Forms\Components\Select::make('codificacion_id')
+                            ->label('Codificación')
                             ->relationship('codificacion', 'codificacion', fn ($query) => $query->orderBy('codificacion'))
-                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->codificacion} ({$record->codigo})")
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->codificacion)  // Solo nombre en el input seleccionado
+                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->codificacion} ({$record->codigo})") // Con prefijo en el dropdown
                             ->required()
                             ->searchable()
                             ->preload()
-                            ->live() // clave para reactividad
+                            ->live()
                             ->afterStateUpdated(function (callable $set, $state) {
                                 if ($state) {
                                     $sugerido = Stock::generarSiguienteCodigo($state);
@@ -139,11 +142,11 @@ class StockResource extends Resource
     }
 
     /**
-     * Mutar datos antes de crear un nuevo registro
+     * Mutar datos antes de crear un nuevo registro (seguridad extra)
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Si el código está vacío al crear → generarlo automáticamente
+        // Si por alguna razón el código quedó vacío → generarlo
         if (empty($data['codigo']) && !empty($data['codificacion_id'])) {
             $data['codigo'] = Stock::generarSiguienteCodigo($data['codificacion_id']);
         }
