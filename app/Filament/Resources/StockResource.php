@@ -22,7 +22,8 @@ class StockResource extends Resource
     protected static ?string $pluralModelLabel = 'Stock';
 
     protected static ?string $modelLabel = 'Ítem de stock';
-
+    protected static ?string $navigationGroup = 'Almacén';
+    protected static ?int $navigationSort = 20;
     public static function form(Form $form): Form
     {
         return $form
