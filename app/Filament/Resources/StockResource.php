@@ -10,6 +10,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 
 class StockResource extends Resource
 {
@@ -24,6 +25,7 @@ class StockResource extends Resource
     protected static ?string $modelLabel = 'Ítem de stock';
     protected static ?string $navigationGroup = 'Almacén';
     protected static ?int $navigationSort = 20;
+
     public static function form(Form $form): Form
     {
         return $form
@@ -55,7 +57,6 @@ class StockResource extends Resource
                         Forms\Components\Select::make('codificacion_id')
                             ->label('Codificación')
                             ->relationship('codificacion', 'codificacion', fn ($query) => $query->orderBy('codificacion'))
-                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->codificacion)
                             ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->codificacion} ({$record->codigo})")
                             ->required()
                             ->searchable()
@@ -93,24 +94,37 @@ class StockResource extends Resource
                     ->schema([
                         Forms\Components\Grid::make(3)->schema([
                             Forms\Components\TextInput::make('stock_minimo')
+                                ->label('Stock mínimo *')
                                 ->numeric()
                                 ->default(10)
                                 ->required(),
 
-                            Forms\Components\TextInput::make('stock_actual')
-                                ->numeric()
-                                ->default(0)
-                                ->required()
-                                ->live()
-                                ->afterStateUpdated(function ($state, callable $set, $get) {
-                                    $minimo = $get('stock_minimo') ?? 10;
-                                    $set('es_critico', $state <= $minimo);
-                                }),
+                            Forms\Components\Placeholder::make('stock_actual')
+                                ->label('Stock actual')
+                                ->content(function ($record) {
+                                    if (!$record?->exists) {
+                                        return '0 (se calculará con los movimientos)';
+                                    }
+
+                                    $valor = $record->stock_actual ?? 0;
+                                    $minimo = $record->stock_minimo ?? 10;
+
+                                    $textColor = $valor <= $minimo 
+                                        ? 'text-red-600 dark:text-red-400' 
+                                        : 'text-green-600 dark:text-green-400';
+
+                                    return new HtmlString(
+                                        "<span class=\"{$textColor} font-bold text-xl\">" . 
+                                        number_format($valor, 0) . 
+                                        "</span>"
+                                    );
+                                })
+                                ->hint('Hitorial de movimientos en el módulo de Kardex'),
 
                             Forms\Components\Toggle::make('es_critico')
                                 ->label('Crítico (stock bajo)')
                                 ->disabled()
-                                ->dehydrated(true),
+                                ->dehydrated(false),
                         ]),
 
                         Forms\Components\Select::make('condicion')
@@ -235,7 +249,7 @@ class StockResource extends Resource
                 Tables\Columns\TextColumn::make('stock_actual')
                     ->numeric()
                     ->sortable()
-                    ->color(fn ($record) => $record->stock_actual <= $record->stock_minimo ? 'danger' : null),
+                    ->color(fn ($record) => $record->stock_actual <= $record->stock_minimo ? 'danger' : 'success'),
 
                 Tables\Columns\TextColumn::make('stock_minimo')
                     ->numeric()
@@ -247,7 +261,6 @@ class StockResource extends Resource
                     ->trueColor('danger')
                     ->falseColor('gray'),
 
-                // COLUMNA FINAL: usa los accessors del modelo (más estable y sin eager loading)
                 Tables\Columns\TextColumn::make('proxima_recalibracion_formatted')
                     ->label('Próxima recalibración')
                     ->sortable(false)
