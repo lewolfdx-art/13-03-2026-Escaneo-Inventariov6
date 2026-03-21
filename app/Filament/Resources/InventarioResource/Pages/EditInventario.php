@@ -16,4 +16,12 @@ class EditInventario extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
+
+    /**
+     * Redirige al índice de la lista después de editar y guardar
+     */
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }
