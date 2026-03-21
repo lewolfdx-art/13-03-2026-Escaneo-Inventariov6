@@ -17,6 +17,9 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
+use Filament\Http\Responses\Auth\Contracts\LogoutResponse as LogoutResponseContract;
+use App\Http\Responses\LogoutResponse;  // ← Importa tu nueva clase
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -52,7 +55,13 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
-                Authenticate::class,
-            ]);
+                FilamentAuthenticate::class,
+            ])
+            // ──────────────────────────────────────────────────────────────
+            // REDIRECCIÓN PERSONALIZADA DESPUÉS DEL LOGOUT → a la ruta 'home' (/)
+            // ──────────────────────────────────────────────────────────────
+            ->bootUsing(function () {
+                app()->bind(LogoutResponseContract::class, LogoutResponse::class);
+            });
     }
 }
